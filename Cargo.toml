@@ -1,0 +1,16 @@
+[package]
+name = "myeon"
+version = "0.1.0"
+authors = ["Claes Adamsson <claes.adamsson@gmail.com>"]
+homepage = "https://cladam.github.io/"
+repository = "https://github.com/cladam/myeon"
+readme = "README.md"
+license = "MIT"
+description = "myeon is a minimalist, keyboard-driven TUI Kanban board"
+keywords = ["tui", "kanban", "planning", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+edition = "2024"
+
+[dependencies]
+ratatui = "0.30.0"
+crossterm = "0.29.0"
