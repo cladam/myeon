@@ -7,7 +7,7 @@ use crossterm::{
 use myeon::cli;
 use myeon::cli::{Cli, Commands};
 use myeon::colours;
-use myeon::data::{Priority, Task, TaskStatus};
+use myeon::data::{MyeonData, Priority, Task, TaskStatus};
 use ratatui::{
     Frame, Terminal,
     backend::{Backend, CrosstermBackend},
@@ -34,50 +34,37 @@ struct App {
 
 impl App {
     fn new() -> App {
-        let tasks = vec![
-            Task {
+        let data = MyeonData::load();
+
+        // If file is empty, you could optionally inject a "Welcome" task
+        let tasks = if data.tasks.is_empty() {
+            vec![Task {
                 id: uuid::Uuid::new_v4(),
-                title: "Implement basic TUI".to_string(),
-                description: None,
-                status: TaskStatus::Done,
-                priority: Priority::High,
-                context: "Work".to_string(),
-                created_at: chrono::Utc::now(),
-            },
-            Task {
-                id: uuid::Uuid::new_v4(),
-                title: "Fix rendering bugs".to_string(),
-                description: Some("Fix all the things!".to_string()),
-                status: TaskStatus::Doing,
-                priority: Priority::Medium,
-                context: "Work".to_string(),
-                created_at: chrono::Utc::now(),
-            },
-            Task {
-                id: uuid::Uuid::new_v4(),
-                title: "Add task creation".to_string(),
+                title: "Welcome to myeon. Press 'a' to add a task.".to_string(),
                 description: None,
                 status: TaskStatus::Todo,
                 priority: Priority::Low,
-                context: "Work".to_string(),
+                context: "General".to_string(),
                 created_at: chrono::Utc::now(),
-            },
-            Task {
-                id: uuid::Uuid::new_v4(),
-                title: "Buy groceries".to_string(),
-                description: Some("Milk, Bread, Cheese".to_string()),
-                status: TaskStatus::Todo,
-                priority: Priority::High,
-                context: "Personal".to_string(),
-                created_at: chrono::Utc::now(),
-            },
-        ];
+            }]
+        } else {
+            data.tasks
+        };
+
         App {
             column_index: 0,
             selected_task_index: 0,
             all_tasks: tasks,
             current_context: "All".to_string(),
         }
+    }
+
+    /// Save current state back to disk
+    fn persist(&self) {
+        let data = MyeonData {
+            tasks: self.all_tasks.clone(),
+        };
+        let _ = data.save();
     }
 
     // Filter tasks based on status for the UI columns
