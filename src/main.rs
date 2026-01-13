@@ -7,6 +7,7 @@ use crossterm::{
 use myeon::cli;
 use myeon::cli::{Cli, Commands};
 use myeon::colours;
+use myeon::data::{Priority, Task, TaskStatus};
 use ratatui::{
     Frame, Terminal,
     backend::{Backend, CrosstermBackend},
@@ -26,19 +27,66 @@ const ACCENT_URGENT: Color = Color::Rgb(179, 95, 95); // MutedRed (StatusUrgent)
 
 struct App {
     column_index: usize,
-    todo: Vec<String>,
-    doing: Vec<String>,
-    done: Vec<String>,
+    selected_task_index: usize,
+    all_tasks: Vec<Task>,
+    current_context: String, // For filtering (e.g., "All" or "Work")
 }
 
 impl App {
     fn new() -> App {
+        let tasks = vec![
+            Task {
+                id: uuid::Uuid::new_v4(),
+                title: "Implement basic TUI".to_string(),
+                description: None,
+                status: TaskStatus::Done,
+                priority: Priority::High,
+                context: "Work".to_string(),
+                created_at: chrono::Utc::now(),
+            },
+            Task {
+                id: uuid::Uuid::new_v4(),
+                title: "Fix rendering bugs".to_string(),
+                description: Some("Fix all the things!".to_string()),
+                status: TaskStatus::Doing,
+                priority: Priority::Medium,
+                context: "Work".to_string(),
+                created_at: chrono::Utc::now(),
+            },
+            Task {
+                id: uuid::Uuid::new_v4(),
+                title: "Add task creation".to_string(),
+                description: None,
+                status: TaskStatus::Todo,
+                priority: Priority::Low,
+                context: "Work".to_string(),
+                created_at: chrono::Utc::now(),
+            },
+            Task {
+                id: uuid::Uuid::new_v4(),
+                title: "Buy groceries".to_string(),
+                description: Some("Milk, Bread, Cheese".to_string()),
+                status: TaskStatus::Todo,
+                priority: Priority::High,
+                context: "Personal".to_string(),
+                created_at: chrono::Utc::now(),
+            },
+        ];
         App {
             column_index: 0,
-            todo: vec!["Refactor TUI".to_string(), "Add Ilseon colors".to_string()],
-            doing: vec!["Build boilerplate".to_string()],
-            done: vec!["Choose name".to_string()],
+            selected_task_index: 0,
+            all_tasks: tasks,
+            current_context: "All".to_string(),
         }
+    }
+
+    // Filter tasks based on status for the UI columns
+    fn tasks_by_status(&self, status: TaskStatus) -> Vec<&Task> {
+        self.all_tasks
+            .iter()
+            .filter(|t| t.status == status)
+            .filter(|t| self.current_context == "All" || t.context == self.current_context)
+            .collect()
     }
 }
 
@@ -154,12 +202,16 @@ fn ui(f: &mut Frame, app: &App) {
         )
         .split(chunks[1]);
 
-    render_column(f, columns[0], "To Do", &app.todo, app.column_index == 0);
-    render_column(f, columns[1], "Doing", &app.doing, app.column_index == 1);
-    render_column(f, columns[2], "Done", &app.done, app.column_index == 2);
+    let todo_tasks = app.tasks_by_status(TaskStatus::Todo);
+    let doing_tasks = app.tasks_by_status(TaskStatus::Doing);
+    let done_tasks = app.tasks_by_status(TaskStatus::Done);
+
+    render_column(f, columns[0], "To Do", &todo_tasks, app.column_index == 0);
+    render_column(f, columns[1], "Doing", &doing_tasks, app.column_index == 1);
+    render_column(f, columns[2], "Done", &done_tasks, app.column_index == 2);
 }
 
-fn render_column(f: &mut Frame, area: Rect, title: &str, items: &[String], is_active: bool) {
+fn render_column(f: &mut Frame, area: Rect, title: &str, items: &[&Task], is_active: bool) {
     let border_color = if is_active {
         BORDER_ACTIVE
     } else {
@@ -168,7 +220,7 @@ fn render_column(f: &mut Frame, area: Rect, title: &str, items: &[String], is_ac
 
     let list_items: Vec<ListItem> = items
         .iter()
-        .map(|i| ListItem::new(format!(" • {}", i)).style(Style::default().fg(FG_PRIMARY)))
+        .map(|i| ListItem::new(format!(" • {}", i.title)).style(Style::default().fg(FG_PRIMARY)))
         .collect();
 
     let list = List::new(list_items).block(

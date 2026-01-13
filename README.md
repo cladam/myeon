@@ -55,3 +55,11 @@ In the **ilseon** ecosystem, focus is sacred.
 Most Kanban boards are designed for complex project management, often resulting in "information density" that leads to cognitive overwhelm and task paralysis. **myeon** (Korean for *surface* or *plane*) is the spatial counterpart to the ilseon mobile app. 
 
 While **ilseon** helps you walk the path (The Line), **myeon** helps you map the territory (The Plane). It provides a high-contrast, low-stimulation environment to organise your thoughts without the "noise" of traditional productivity software.
+
+## Shared Identity
+
+`myeon` is visually synchronised with the **ilseon** Android app. It utilises the same low-sensory colour palette to ensure a seamless transition between mobile execution and desktop planning:
+
+* **Stillness Palette:** Uses `#121212` backgrounds to eliminate eye strain during long sessions.
+* **Semantic Accents:** Employs `MutedTeal` for active focus and `MutedRed` for urgency, maintaining a consistent mental map across devices.
+* **OLED Friendly:** Optimised for high-contrast, low-brightness environments.
