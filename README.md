@@ -12,7 +12,7 @@
 
 `myeon` is a minimalist, keyboard-driven TUI Kanban board built with **Rust** and **Ratatui**. While [ilseon](https://github.com/cladam/ilseon) is designed for **execution** (the single priority), `myeon` is designed for **perspective** (the landscape).
 
-It provides a low-sensory, high-focus environment to triage ideas, organize projects, and decide what earns the right to become your "first line" of work.
+It provides a low-sensory, high-focus environment to triage ideas, organise projects, and decide what earns the right to become your "first line" of work.
 
 ## The Philosophy
 
