@@ -1,5 +1,6 @@
 # myeon (면)
 
+```
   _ __ ___  _   _  ___  ___  _ __  
  | '_ ` _ \| | | |/ _ \/ _ \| '_ \ 
  | | | | | | |_| |  __/ (_) | | | |
@@ -7,8 +8,7 @@
             |___/                  
                                            
       the plane — space for focus
-
-> **The Spatial Planning Console for the Ilseon Umbrella.**
+```
 
 `myeon` is a minimalist, keyboard-driven TUI Kanban board built with **Rust** and **Ratatui**. While [ilseon](https://github.com/cladam/ilseon) is designed for **execution** (the single priority), `myeon` is designed for **perspective** (the landscape).
 
