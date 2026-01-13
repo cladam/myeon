@@ -1,8 +1,12 @@
+use clap::Parser;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
+use myeon::cli;
+use myeon::cli::{Cli, Commands};
+use myeon::colours;
 use ratatui::{
     Frame, Terminal,
     backend::{Backend, CrosstermBackend},
@@ -38,32 +42,64 @@ impl App {
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    // Setup terminal
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
-    // Create app and run loop
-    let app = App::new();
-    let res = run_app(&mut terminal, app);
-
-    // Restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
-
-    if let Err(err) = res {
-        println!("{:?}", err)
+fn main() {
+    let cli = cli::Cli::parse();
+    if let Err(e) = run(cli) {
+        colours::error(&format!("Error: {}", e));
+        std::process::exit(1);
     }
+}
 
-    Ok(())
+// The main logic function, which takes the parsed CLI commands
+pub fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
+    match cli.command {
+        Some(Commands::Update) => {
+            println!("--- Checking for updates ---");
+            let status = self_update::backends::github::Update::configure()
+                .repo_owner("cladam")
+                .repo_name("myeon")
+                .bin_name("myeon")
+                .show_download_progress(true)
+                .current_version(self_update::cargo_crate_version!())
+                .build()?
+                .update()?;
+
+            println!("Update status: `{}`!", status.version());
+            if status.updated() {
+                println!("Successfully updated myeon!");
+            } else {
+                println!("myeon is already up to date.");
+            }
+            Ok(())
+        }
+        None => {
+            // Setup terminal
+            enable_raw_mode()?;
+            let mut stdout = io::stdout();
+            execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+            let backend = CrosstermBackend::new(stdout);
+            let mut terminal = Terminal::new(backend)?;
+
+            // Create app and run loop
+            let app = App::new();
+            let res = run_app(&mut terminal, app);
+
+            // Restore terminal
+            disable_raw_mode()?;
+            execute!(
+                terminal.backend_mut(),
+                LeaveAlternateScreen,
+                DisableMouseCapture
+            )?;
+            terminal.show_cursor()?;
+
+            if let Err(err) = res {
+                println!("{:?}", err)
+            }
+
+            Ok(())
+        }
+    }
 }
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
@@ -93,7 +129,7 @@ fn ui(f: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
-        .split(f.size());
+        .split(f.area());
 
     // --- Header ---
     let header = Paragraph::new(" myeon | h/l to move • q to quit ")
