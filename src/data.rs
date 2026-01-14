@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum TaskStatus {
+    Idea,
     Todo,
     Doing,
     Done,
@@ -12,6 +13,7 @@ pub enum TaskStatus {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ColumnConfig {
+    pub idea_label: String,
     pub todo_label: String,
     pub doing_label: String,
     pub done_label: String,
@@ -20,6 +22,7 @@ pub struct ColumnConfig {
 impl Default for ColumnConfig {
     fn default() -> Self {
         Self {
+            idea_label: "Idea".into(),
             todo_label: "To Do".into(),
             doing_label: "Doing".into(),
             done_label: "Done".into(),

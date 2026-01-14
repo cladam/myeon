@@ -2,7 +2,7 @@ use clap::Parser;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use myeon::cli;
 use myeon::cli::{Cli, Commands};
@@ -12,11 +12,11 @@ use ratatui::text::Line;
 use ratatui::text::Span;
 use ratatui::widgets::BorderType;
 use ratatui::{
-    backend::{Backend, CrosstermBackend}, layout::{Constraint, Direction, Layout, Rect},
+    Frame, Terminal,
+    backend::{Backend, CrosstermBackend},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     widgets::{Block, Borders, List, ListItem, Paragraph},
-    Frame,
-    Terminal,
 };
 use std::{error::Error, io};
 
@@ -66,7 +66,7 @@ impl App {
                 id: uuid::Uuid::new_v4(),
                 title: "Welcome to myeon. Press 'a' to add a task.".to_string(),
                 description: None,
-                status: TaskStatus::Todo,
+                status: TaskStatus::Idea,
                 priority: Priority::Low,
                 context: "General".to_string(),
                 created_at: chrono::Utc::now(),
@@ -148,7 +148,7 @@ impl App {
                 id: uuid::Uuid::new_v4(),
                 title: self.input.clone(),
                 description: None,
-                status: TaskStatus::Todo,
+                status: TaskStatus::Idea,
                 priority: self.editing_priority.clone(),
                 context: if self.editing_context.is_empty() {
                     "General".to_string()
@@ -205,8 +205,9 @@ impl App {
     // Helper to get current tasks in the active column
     fn get_current_column_tasks(&self) -> Vec<&Task> {
         let status = match self.column_index {
-            0 => TaskStatus::Todo,
-            1 => TaskStatus::Doing,
+            0 => TaskStatus::Idea,
+            1 => TaskStatus::Todo,
+            2 => TaskStatus::Doing,
             _ => TaskStatus::Done,
         };
         self.tasks_by_status(status)
@@ -219,6 +220,7 @@ impl App {
             let id = task_to_move.id;
             if let Some(task) = self.all_tasks.iter_mut().find(|t| t.id == id) {
                 task.status = match task.status {
+                    TaskStatus::Idea => TaskStatus::Todo,
                     TaskStatus::Todo => TaskStatus::Doing,
                     TaskStatus::Doing => TaskStatus::Done,
                     TaskStatus::Done => TaskStatus::Done,
@@ -321,7 +323,8 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         }
                     }
                     KeyCode::Char('l') | KeyCode::Right => {
-                        if app.column_index < 2 {
+                        if app.column_index < 3 {
+                            // Changed from 2 to 3
                             app.column_index += 1;
                         }
                     }
@@ -435,7 +438,7 @@ fn ui(f: &mut Frame, app: &App) {
     // --- Dynamic Header ---
     let header_text = match app.input_mode {
         InputMode::Normal => format!(
-            " myeon | Context: [{}] | 'c' to cycle • 'a' to add • 'q' to quit ",
+            " myeon | Context: [{}] | 'c' to cycle • 'a' to add • 'e' to edit • Enter to move card forward • 'q' to quit ",
             app.current_context.to_uppercase().to_string()
         ),
         InputMode::Editing => " Adding Task (Tab to switch fields, Enter to submit) ".to_string(),
@@ -459,12 +462,14 @@ fn ui(f: &mut Frame, app: &App) {
     let columns = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(33),
-            Constraint::Percentage(33),
-            Constraint::Percentage(33),
+            Constraint::Percentage(25), // Idea (The Landing Strip)
+            Constraint::Percentage(25), // To Do
+            Constraint::Percentage(25), // Doing
+            Constraint::Percentage(25), // Done
         ])
         .split(main_chunks[1]);
 
+    let idea_tasks = app.tasks_by_status(TaskStatus::Idea);
     let todo_tasks = app.tasks_by_status(TaskStatus::Todo);
     let doing_tasks = app.tasks_by_status(TaskStatus::Doing);
     let done_tasks = app.tasks_by_status(TaskStatus::Done);
@@ -472,7 +477,7 @@ fn ui(f: &mut Frame, app: &App) {
     // Determine Doing column border colour based on WIP Limit
     let doing_border_color = if doing_tasks.len() > 3 {
         ACCENT_URGENT // MutedRed indicating overwhelm
-    } else if app.column_index == 1 {
+    } else if app.column_index == 2 {
         BORDER_ACTIVE // MutedTeal for focus
     } else {
         BORDER_QUIET // Dark border
@@ -481,8 +486,8 @@ fn ui(f: &mut Frame, app: &App) {
     render_column(
         f,
         columns[0],
-        "To Do",
-        &todo_tasks,
+        "Ideas",
+        &idea_tasks,
         app.column_index == 0,
         app.selected_task_index,
         None,
@@ -490,18 +495,27 @@ fn ui(f: &mut Frame, app: &App) {
     render_column(
         f,
         columns[1],
+        "To Do",
+        &todo_tasks,
+        app.column_index == 1,
+        app.selected_task_index,
+        None,
+    );
+    render_column(
+        f,
+        columns[2],
         "Doing",
         &doing_tasks,
-        app.column_index == 1,
+        app.column_index == 2,
         app.selected_task_index,
         Some(doing_border_color),
     );
     render_column(
         f,
-        columns[2],
+        columns[3],
         "Done",
         &done_tasks,
-        app.column_index == 2,
+        app.column_index == 3,
         app.selected_task_index,
         None,
     );
