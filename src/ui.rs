@@ -1,0 +1,311 @@
+use crate::app::{App, EditField, InputMode};
+use crate::data::{Priority, Task, TaskStatus};
+use ratatui::{
+    Frame,
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Style},
+    text::{Line, Span},
+    widgets::{Block, BorderType, Borders, List, ListItem, Paragraph},
+};
+
+pub const BG_DEEP: Color = Color::Rgb(18, 18, 18);
+pub const FG_PRIMARY: Color = Color::Rgb(224, 224, 224);
+pub const FG_MUTED: Color = Color::Rgb(176, 176, 176);
+pub const BORDER_ACTIVE: Color = Color::Rgb(90, 155, 128);
+pub const BORDER_QUIET: Color = Color::Rgb(31, 31, 31);
+pub const ACCENT_URGENT: Color = Color::Rgb(179, 95, 95);
+
+pub fn render(f: &mut Frame, app: &App) {
+    let main_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(if matches!(app.input_mode, InputMode::Editing) {
+            [
+                Constraint::Length(3),
+                Constraint::Min(0),
+                Constraint::Length(3),
+            ]
+            .as_ref()
+        } else {
+            [
+                Constraint::Length(3),
+                Constraint::Min(0),
+                Constraint::Length(0),
+            ]
+            .as_ref()
+        })
+        .split(f.area());
+
+    render_header(f, app, main_chunks[0]);
+    render_columns(f, app, main_chunks[1]);
+
+    if matches!(app.input_mode, InputMode::Editing) {
+        render_input_area(f, app, main_chunks[2]);
+    }
+}
+
+fn render_header(f: &mut Frame, app: &App, area: Rect) {
+    let header_text = match app.input_mode {
+        InputMode::Normal => format!(
+            " myeon | Context: [{}] | 'c' to cycle • 'a' to add • 'e' to edit • Enter to move card forward • 'q' to quit ",
+            app.current_context.to_uppercase()
+        ),
+        InputMode::Editing => " Adding Task (Tab to switch fields, Enter to submit) ".to_string(),
+    };
+
+    let header_style = if matches!(app.input_mode, InputMode::Editing) {
+        Style::default().fg(BORDER_ACTIVE)
+    } else {
+        Style::default().fg(FG_MUTED)
+    };
+
+    let header = Paragraph::new(header_text).style(header_style).block(
+        Block::default()
+            .borders(Borders::BOTTOM)
+            .border_style(header_style),
+    );
+    f.render_widget(header, area);
+}
+
+fn render_columns(f: &mut Frame, app: &App, area: Rect) {
+    let columns = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+        ])
+        .split(area);
+
+    let doing_tasks = app.tasks_by_status(TaskStatus::Doing);
+    let doing_border_color = if doing_tasks.len() > 3 {
+        ACCENT_URGENT
+    } else if app.column_index == 2 {
+        BORDER_ACTIVE
+    } else {
+        BORDER_QUIET
+    };
+
+    render_column(
+        f,
+        columns[0],
+        "Ideas",
+        &app.tasks_by_status(TaskStatus::Idea),
+        app.column_index == 0,
+        app.selected_task_index,
+        None,
+    );
+    render_column(
+        f,
+        columns[1],
+        "To Do",
+        &app.tasks_by_status(TaskStatus::Todo),
+        app.column_index == 1,
+        app.selected_task_index,
+        None,
+    );
+    render_column(
+        f,
+        columns[2],
+        "Doing",
+        &doing_tasks,
+        app.column_index == 2,
+        app.selected_task_index,
+        Some(doing_border_color),
+    );
+    render_column(
+        f,
+        columns[3],
+        "Done",
+        &app.tasks_by_status(TaskStatus::Done),
+        app.column_index == 3,
+        app.selected_task_index,
+        None,
+    );
+}
+
+fn render_column(
+    f: &mut Frame,
+    area: Rect,
+    title: &str,
+    items: &[&Task],
+    is_active: bool,
+    selected_index: usize,
+    override_color: Option<Color>,
+) {
+    let border_color = override_color.unwrap_or(if is_active {
+        BORDER_ACTIVE
+    } else {
+        BORDER_QUIET
+    });
+
+    let column_block = Block::default()
+        .borders(Borders::ALL)
+        .title(format!(" {} ", title))
+        .border_type(BorderType::Thick)
+        .border_style(Style::default().fg(border_color));
+
+    let inner_area = column_block.inner(area);
+    f.render_widget(column_block, area);
+
+    let card_height = 4u16;
+    let mut y_offset = 0u16;
+
+    for (i, task) in items.iter().enumerate() {
+        if y_offset + card_height > inner_area.height {
+            break;
+        }
+
+        let card_area = Rect {
+            x: inner_area.x,
+            y: inner_area.y + y_offset,
+            width: inner_area.width,
+            height: card_height - 1,
+        };
+        let is_selected = is_active && i == selected_index;
+
+        let (indicator, indicator_color) = match task.priority {
+            Priority::High => ("▌", ACCENT_URGENT),
+            Priority::Medium => ("▌", Color::Rgb(192, 138, 62)),
+            Priority::Low => ("▌", FG_MUTED),
+        };
+
+        let card_border_color = if is_selected {
+            BORDER_ACTIVE
+        } else {
+            BORDER_QUIET
+        };
+        let desc_preview: String = task
+            .description
+            .clone()
+            .unwrap_or_default()
+            .chars()
+            .take(30)
+            .collect();
+
+        let card = Paragraph::new(vec![
+            Line::from(vec![
+                Span::styled(indicator, Style::default().fg(indicator_color)),
+                Span::styled(&task.title, Style::default().fg(FG_PRIMARY)),
+            ]),
+            Line::from(Span::styled(
+                format!(" {}", desc_preview),
+                Style::default().fg(FG_MUTED),
+            )),
+        ])
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(card_border_color))
+                .style(Style::default().bg(BG_DEEP)),
+        );
+
+        f.render_widget(card, card_area);
+        y_offset += card_height;
+    }
+}
+
+fn render_input_area(f: &mut Frame, app: &App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(30),
+            Constraint::Percentage(30),
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
+        ])
+        .split(area);
+
+    render_input_field(
+        f,
+        " Title ",
+        &app.input,
+        matches!(app.active_edit_field, EditField::Title),
+        chunks[0],
+    );
+    render_input_field(
+        f,
+        " Description ",
+        &app.editing_description,
+        matches!(app.active_edit_field, EditField::Description),
+        chunks[1],
+    );
+
+    let context_display = if app.editing_context.is_empty() {
+        "↑↓ select".to_string()
+    } else {
+        app.editing_context.clone()
+    };
+    render_input_field(
+        f,
+        " Context ",
+        &context_display,
+        matches!(app.active_edit_field, EditField::Context),
+        chunks[2],
+    );
+    render_input_field(
+        f,
+        " Priority ",
+        &format!("{:?}", app.editing_priority),
+        matches!(app.active_edit_field, EditField::Priority),
+        chunks[3],
+    );
+
+    if matches!(app.active_edit_field, EditField::Context) {
+        render_context_popup(f, app, chunks[2]);
+    }
+}
+
+fn render_input_field(f: &mut Frame, title: &str, content: &str, is_active: bool, area: Rect) {
+    let style = if is_active {
+        Style::default().fg(BORDER_ACTIVE)
+    } else {
+        Style::default().fg(FG_MUTED)
+    };
+    let input = Paragraph::new(content).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .border_style(style),
+    );
+    f.render_widget(input, area);
+}
+
+fn render_context_popup(f: &mut Frame, app: &App, anchor: Rect) {
+    let contexts = app.get_task_contexts();
+    if contexts.is_empty() {
+        return;
+    }
+
+    let popup_height = (contexts.len() as u16 + 2).min(8);
+    let popup_area = Rect {
+        x: anchor.x,
+        y: anchor.y.saturating_sub(popup_height),
+        width: anchor.width,
+        height: popup_height,
+    };
+
+    let items: Vec<ListItem> = contexts
+        .iter()
+        .enumerate()
+        .map(|(i, ctx)| {
+            let style = if i == app.context_list_index {
+                Style::default().fg(Color::Black).bg(BORDER_ACTIVE)
+            } else {
+                Style::default().fg(FG_PRIMARY)
+            };
+            ListItem::new(format!(" {}", ctx)).style(style)
+        })
+        .collect();
+
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Contexts ")
+            .border_style(Style::default().fg(BORDER_ACTIVE))
+            .style(Style::default().bg(BG_DEEP)),
+    );
+    f.render_widget(ratatui::widgets::Clear, popup_area);
+    f.render_widget(list, popup_area);
+}
