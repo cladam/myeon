@@ -37,6 +37,8 @@ struct App {
     current_context: String, // For filtering (e.g., "All" or "Work")
     input: String,
     input_mode: InputMode,
+    is_editing_existing: bool,
+    editing_task_id: Option<uuid::Uuid>,
 }
 
 impl App {
@@ -65,6 +67,8 @@ impl App {
             current_context: "All".to_string(),
             input: String::new(),
             input_mode: InputMode::Normal,
+            is_editing_existing: false,
+            editing_task_id: None,
         }
     }
 
@@ -73,20 +77,83 @@ impl App {
             return;
         }
 
-        let new_task = Task {
-            id: uuid::Uuid::new_v4(),
-            title: self.input.clone(),
-            description: None,
-            status: TaskStatus::Todo, // New tasks always start here
-            priority: Priority::Low,  // Default priority
-            context: "General".to_string(),
-            created_at: chrono::Utc::now(),
-        };
-
-        self.all_tasks.push(new_task);
+        if self.is_editing_existing {
+            // Update existing task
+            if let Some(id) = self.editing_task_id {
+                if let Some(task) = self.all_tasks.iter_mut().find(|t| t.id == id) {
+                    task.title = self.input.clone();
+                }
+            }
+            self.is_editing_existing = false;
+            self.editing_task_id = None;
+        } else {
+            // Create new task
+            let new_task = Task {
+                id: uuid::Uuid::new_v4(),
+                title: self.input.clone(),
+                description: None,
+                status: TaskStatus::Todo,
+                priority: Priority::Low,
+                context: "General".to_string(),
+                created_at: chrono::Utc::now(),
+            };
+            self.all_tasks.push(new_task);
+        }
         self.input.clear();
         self.input_mode = InputMode::Normal;
         self.persist(); // Save to tasks.json immediately
+    }
+
+    fn delete_task(&mut self) {
+        let current_tasks = self.get_current_column_tasks();
+        if let Some(task_to_delete) = current_tasks.get(self.selected_task_index) {
+            let id = task_to_delete.id;
+            self.all_tasks.retain(|t| t.id != id);
+
+            // Adjust selection so it doesn't go out of bounds
+            if self.selected_task_index > 0 {
+                self.selected_task_index -= 1;
+            }
+        }
+        self.persist(); //
+    }
+
+    fn start_edit(&mut self) {
+        let current_tasks = self.get_current_column_tasks();
+        if let Some(task) = current_tasks.get(self.selected_task_index) {
+            let title = task.title.clone();
+            let id = task.id;
+            self.input = title;
+            self.input_mode = InputMode::Editing;
+            self.is_editing_existing = true;
+            self.editing_task_id = Some(id);
+        }
+    }
+
+    // Helper to get current tasks in the active column
+    fn get_current_column_tasks(&self) -> Vec<&Task> {
+        let status = match self.column_index {
+            0 => TaskStatus::Todo,
+            1 => TaskStatus::Doing,
+            _ => TaskStatus::Done,
+        };
+        self.tasks_by_status(status)
+    }
+
+    // Move task to the next logical state
+    fn move_task_forward(&mut self) {
+        let current_tasks = self.get_current_column_tasks();
+        if let Some(task_to_move) = current_tasks.get(self.selected_task_index) {
+            let id = task_to_move.id;
+            if let Some(task) = self.all_tasks.iter_mut().find(|t| t.id == id) {
+                task.status = match task.status {
+                    TaskStatus::Todo => TaskStatus::Doing,
+                    TaskStatus::Doing => TaskStatus::Done,
+                    TaskStatus::Done => TaskStatus::Done,
+                };
+            }
+        }
+        self.persist(); //
     }
 
     /// Save current state back to disk
@@ -186,6 +253,20 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                             app.column_index += 1;
                         }
                     }
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        let max = app.get_current_column_tasks().len();
+                        if app.selected_task_index + 1 < max {
+                            app.selected_task_index += 1;
+                        }
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        if app.selected_task_index > 0 {
+                            app.selected_task_index -= 1;
+                        }
+                    }
+                    KeyCode::Enter => app.move_task_forward(),
+                    KeyCode::Char('d') => app.delete_task(),
+                    KeyCode::Char('e') => app.start_edit(),
                     _ => {}
                 },
                 InputMode::Editing => match key.code {
@@ -197,6 +278,8 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                     KeyCode::Esc => {
                         app.input.clear();
                         app.input_mode = InputMode::Normal;
+                        app.is_editing_existing = false;
+                        app.editing_task_id = None;
                     }
                     _ => {}
                 },
@@ -248,12 +331,40 @@ fn ui(f: &mut Frame, app: &App) {
     let doing_tasks = app.tasks_by_status(TaskStatus::Doing);
     let done_tasks = app.tasks_by_status(TaskStatus::Done);
 
-    render_column(f, columns[0], "To Do", &todo_tasks, app.column_index == 0);
-    render_column(f, columns[1], "Doing", &doing_tasks, app.column_index == 1);
-    render_column(f, columns[2], "Done", &done_tasks, app.column_index == 2);
+    render_column(
+        f,
+        columns[0],
+        "To Do",
+        &todo_tasks,
+        app.column_index == 0,
+        app.selected_task_index,
+    );
+    render_column(
+        f,
+        columns[1],
+        "Doing",
+        &doing_tasks,
+        app.column_index == 1,
+        app.selected_task_index,
+    );
+    render_column(
+        f,
+        columns[2],
+        "Done",
+        &done_tasks,
+        app.column_index == 2,
+        app.selected_task_index,
+    );
 }
 
-fn render_column(f: &mut Frame, area: Rect, title: &str, items: &[&Task], is_active: bool) {
+fn render_column(
+    f: &mut Frame,
+    area: Rect,
+    title: &str,
+    items: &[&Task],
+    is_active: bool,
+    selected_index: usize,
+) {
     let border_color = if is_active {
         BORDER_ACTIVE
     } else {
@@ -262,7 +373,15 @@ fn render_column(f: &mut Frame, area: Rect, title: &str, items: &[&Task], is_act
 
     let list_items: Vec<ListItem> = items
         .iter()
-        .map(|i| ListItem::new(format!(" • {}", i.title)).style(Style::default().fg(FG_PRIMARY)))
+        .enumerate()
+        .map(|(i, task)| {
+            let style = if is_active && i == selected_index {
+                Style::default().fg(Color::Black).bg(BORDER_ACTIVE)
+            } else {
+                Style::default().fg(FG_PRIMARY)
+            };
+            ListItem::new(format!(" • {}", task.title)).style(style)
+        })
         .collect();
 
     let list = List::new(list_items).block(
