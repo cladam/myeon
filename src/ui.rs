@@ -8,7 +8,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, List, ListItem, Paragraph},
 };
 
-pub const BG_DEEP: Color = Color::Rgb(18, 18, 18);
+pub const BG_DEEP: Color = Color::Rgb(54, 52, 58);
 pub const FG_PRIMARY: Color = Color::Rgb(224, 224, 224);
 pub const FG_MUTED: Color = Color::Rgb(176, 176, 176);
 pub const BORDER_ACTIVE: Color = Color::Rgb(90, 155, 128);
@@ -148,10 +148,23 @@ fn render_column(
     let inner_area = column_block.inner(area);
     f.render_widget(column_block, area);
 
-    let card_height = 4u16;
     let mut y_offset = 0u16;
 
     for (i, task) in items.iter().enumerate() {
+        let content_width = inner_area.width.saturating_sub(4) as usize;
+        let wrapped_title = wrap_text(&task.title, content_width.saturating_sub(1));
+        let description = task.description.clone().unwrap_or_default();
+        let wrapped_desc = wrap_text(&description, content_width);
+
+        // Calculate height: borders (2) + title lines + description lines
+        let title_lines = wrapped_title.lines().count().max(1) as u16;
+        let desc_lines = if wrapped_desc.is_empty() {
+            0
+        } else {
+            wrapped_desc.lines().count() as u16
+        };
+        let card_height = 2 + title_lines + desc_lines; // 2 for top/bottom border
+
         if y_offset + card_height > inner_area.height {
             break;
         }
@@ -160,7 +173,7 @@ fn render_column(
             x: inner_area.x,
             y: inner_area.y + y_offset,
             width: inner_area.width,
-            height: card_height - 1,
+            height: card_height,
         };
         let is_selected = is_active && i == selected_index;
 
@@ -175,25 +188,35 @@ fn render_column(
         } else {
             BORDER_QUIET
         };
-        let desc_preview: String = task
-            .description
-            .clone()
-            .unwrap_or_default()
-            .chars()
-            .take(30)
+
+        let mut lines: Vec<Line> = wrapped_title
+            .lines()
+            .enumerate()
+            .map(|(idx, line)| {
+                if idx == 0 {
+                    Line::from(vec![
+                        Span::styled(indicator, Style::default().fg(indicator_color)),
+                        Span::styled(line.to_string(), Style::default().fg(FG_PRIMARY)),
+                    ])
+                } else {
+                    Line::from(Span::styled(
+                        format!(" {}", line),
+                        Style::default().fg(FG_PRIMARY),
+                    ))
+                }
+            })
             .collect();
 
-        let card = Paragraph::new(vec![
-            Line::from(vec![
-                Span::styled(indicator, Style::default().fg(indicator_color)),
-                Span::styled(&task.title, Style::default().fg(FG_PRIMARY)),
-            ]),
-            Line::from(Span::styled(
-                format!(" {}", desc_preview),
-                Style::default().fg(FG_MUTED),
-            )),
-        ])
-        .block(
+        if !wrapped_desc.is_empty() {
+            for line in wrapped_desc.lines() {
+                lines.push(Line::from(Span::styled(
+                    format!(" {}", line),
+                    Style::default().fg(FG_MUTED),
+                )));
+            }
+        }
+
+        let card = Paragraph::new(lines).block(
             Block::default()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
@@ -202,8 +225,36 @@ fn render_column(
         );
 
         f.render_widget(card, card_area);
-        y_offset += card_height;
+        y_offset += card_height + 1; // +1 for spacing between cards
     }
+}
+
+fn wrap_text(text: &str, max_width: usize) -> String {
+    if max_width == 0 || text.is_empty() {
+        return text.to_string();
+    }
+
+    let mut result = String::new();
+    let mut current_line_len = 0;
+
+    for word in text.split_whitespace() {
+        let word_len = word.chars().count();
+
+        if current_line_len + word_len + 1 > max_width && current_line_len > 0 {
+            result.push('\n');
+            current_line_len = 0;
+        }
+
+        if current_line_len > 0 {
+            result.push(' ');
+            current_line_len += 1;
+        }
+
+        result.push_str(word);
+        current_line_len += word_len;
+    }
+
+    result
 }
 
 fn render_input_area(f: &mut Frame, app: &App, area: Rect) {

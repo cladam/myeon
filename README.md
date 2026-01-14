@@ -1,26 +1,27 @@
-# myeon (면)
+<p align="center">
+    <img src="images/screenshot1.png" alt="myeon" width="640" height="352">
+</p>
 
-```
-  _ __ ___  _   _  ___  ___  _ __  
- | '_ ` _ \| | | |/ _ \/ _ \| '_ \ 
- | | | | | | |_| |  __/ (_) | | | |
- |_| |_| |_|\__, |\___|\___/|_| |_|
-            |___/                  
-                                           
-      the plane — space for focus
-```
+<h1 align="center">myeon (면)</h1>
 
-`myeon` is a minimalist, keyboard-driven TUI Kanban board built with **Rust** and **Ratatui**. While [ilseon](https://github.com/cladam/ilseon) is designed for **execution** (the single priority), `myeon` is designed for **perspective** (the landscape).
+`myeon` is a minimalist, keyboard-driven TUI Kanban board built with **Rust** and **Ratatui**.
+While [ilseon](https://github.com/cladam/ilseon) is designed for **execution** (the single priority), `myeon` is
+designed for **perspective** (the landscape).
 
-It provides a low-sensory, high-focus environment to triage ideas, organise projects, and decide what earns the right to become your "first line" of work.
+It provides a low-sensory, high-focus environment to triage ideas, organise projects, and decide what earns the right to
+become your "first line" of work.
 
 ## The Philosophy
 
-For neurodivergent users, the "Big Picture" is often a source of anxiety, leading to task paralysis. `myeon` solves this by applying the **Ilseon Stillness** principles to a Kanban structure:
+For neurodivergent users, the "Big Picture" is often a source of anxiety, leading to task paralysis. `myeon` solves this
+by applying the **Ilseon Stillness** principles to a Kanban structure:
 
-* **Low Sensory Load:** No flashing colors, no "Overdue" alarms, and no visual clutter. Just your tasks in a calm, spatial layout.
-* **Contextual Silos:** Filter your entire board by "Work," "Life," or "Project" with a single keystroke. If it’s not relevant now, it doesn't exist.
-* **The "Planning vs. Doing" Split:** Use `myeon` at your desk to organise the chaos. Use **ilseon** on your mobile to execute the result.
+* **Low Sensory Load:** No flashing colors, no "Overdue" alarms, and no visual clutter. Just your tasks in a calm,
+  spatial layout.
+* **Contextual Silos:** Filter your entire board by "Work," "Life," or "Project" with a single keystroke. If it’s not
+  relevant now, it doesn't exist.
+* **The "Planning vs. Doing" Split:** Use `myeon` at your desk to organise the chaos. Use **ilseon** on your mobile to
+  execute the result.
 
 ## Features (Planned)
 
@@ -47,19 +48,24 @@ cargo install --path .
 * `c`: Change Context (Switch between Work/Personal/Side-project).
 * `Enter`: Edit task details.
 
-
 ## About myeon
 
-In the **ilseon** ecosystem, focus is sacred. 
+In the **ilseon** ecosystem, focus is sacred.
 
-Most Kanban boards are designed for complex project management, often resulting in "information density" that leads to cognitive overwhelm and task paralysis. **myeon** (Korean for *surface* or *plane*) is the spatial counterpart to the ilseon mobile app. 
+Most Kanban boards are designed for complex project management, often resulting in "information density" that leads to
+cognitive overwhelm and task paralysis. **myeon** (Korean for *surface* or *plane*) is the spatial counterpart to the
+ilseon mobile app.
 
-While **ilseon** helps you walk the path (The Line), **myeon** helps you map the territory (The Plane). It provides a high-contrast, low-stimulation environment to organise your thoughts without the "noise" of traditional productivity software.
+While **ilseon** helps you walk the path (The Line), **myeon** helps you map the territory (The Plane). It provides a
+high-contrast, low-stimulation environment to organise your thoughts without the "noise" of traditional productivity
+software.
 
 ## Shared Identity
 
-`myeon` is visually synchronised with the **ilseon** Android app. It utilises the same low-sensory colour palette to ensure a seamless transition between mobile execution and desktop planning:
+`myeon` is visually synchronised with the **ilseon** Android app. It utilises the same low-sensory colour palette to
+ensure a seamless transition between mobile execution and desktop planning:
 
 * **Stillness Palette:** Uses `#121212` backgrounds to eliminate eye strain during long sessions.
-* **Semantic Accents:** Employs `MutedTeal` for active focus and `MutedRed` for urgency, maintaining a consistent mental map across devices.
+* **Semantic Accents:** Employs `MutedTeal` for active focus and `MutedRed` for urgency, maintaining a consistent mental
+  map across devices.
 * **OLED Friendly:** Optimised for high-contrast, low-brightness environments.
