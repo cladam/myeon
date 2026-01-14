@@ -8,7 +8,7 @@ readme = "README.md"
 license = "MIT"
 description = "myeon is a minimalist, keyboard-driven TUI Kanban board"
 keywords = ["tui", "kanban", "planning", "cli"]
-categories = ["command-line-utilities", "development-tools"]
+categories = ["command-line-utilities"]
 edition = "2024"
 
 [dependencies]
