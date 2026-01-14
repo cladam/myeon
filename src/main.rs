@@ -32,6 +32,7 @@ pub enum InputMode {
 
 pub enum EditField {
     Title,
+    Description,
     Context,
     Priority,
 }
@@ -88,7 +89,13 @@ impl App {
         }
     }
 
-    fn get_unique_contexts(&self) -> Vec<String> {
+    fn get_filter_contexts(&self) -> Vec<String> {
+        let mut contexts = self.get_task_contexts();
+        contexts.insert(0, "All".to_string());
+        contexts
+    }
+
+    fn get_task_contexts(&self) -> Vec<String> {
         let mut contexts: Vec<String> = self.all_tasks.iter().map(|t| t.context.clone()).collect();
         contexts.sort();
         contexts.dedup();
@@ -99,15 +106,13 @@ impl App {
     }
 
     fn cycle_context(&mut self) {
-        let available = self.get_unique_contexts();
+        let available = self.get_filter_contexts();
         let current_pos = available
             .iter()
             .position(|c| c == &self.current_context)
             .unwrap_or(0);
         let next_pos = (current_pos + 1) % available.len();
         self.current_context = available[next_pos].clone();
-
-        // Reset selection to top to avoid out-of-bounds on filtered views
         self.selected_task_index = 0;
     }
 
@@ -187,6 +192,7 @@ impl App {
             self.input = title;
             self.editing_context = context;
             self.editing_priority = priority;
+            self.editing_description = description.unwrap_or_default();
             self.input_mode = InputMode::Editing;
             self.is_editing_existing = true;
             self.editing_task_id = Some(id);
@@ -342,17 +348,19 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
 fn handle_editing_key(key: event::KeyEvent, app: &mut App) {
     match key.code {
         KeyCode::Tab => match app.active_edit_field {
-            EditField::Title => app.active_edit_field = EditField::Context,
+            EditField::Title => app.active_edit_field = EditField::Description,
+            EditField::Description => app.active_edit_field = EditField::Context,
             EditField::Context => app.active_edit_field = EditField::Priority,
             EditField::Priority => app.active_edit_field = EditField::Title,
         },
         KeyCode::BackTab => match app.active_edit_field {
             EditField::Title => app.active_edit_field = EditField::Priority,
-            EditField::Context => app.active_edit_field = EditField::Title,
+            EditField::Description => app.active_edit_field = EditField::Title,
+            EditField::Context => app.active_edit_field = EditField::Description,
             EditField::Priority => app.active_edit_field = EditField::Context,
         },
         KeyCode::Up | KeyCode::Down if matches!(app.active_edit_field, EditField::Context) => {
-            let contexts = app.get_unique_contexts();
+            let contexts = app.get_task_contexts();
             if !contexts.is_empty() {
                 if key.code == KeyCode::Down {
                     app.context_list_index = (app.context_list_index + 1) % contexts.len();
@@ -369,12 +377,14 @@ fn handle_editing_key(key: event::KeyEvent, app: &mut App) {
             app.input_mode = InputMode::Normal;
             app.active_edit_field = EditField::Title;
             app.input.clear();
+            app.editing_description.clear();
             app.editing_context.clear();
             app.editing_priority = Priority::Low;
             app.context_list_index = 0;
         }
         KeyCode::Char(c) => match app.active_edit_field {
             EditField::Title => app.input.push(c),
+            EditField::Description => app.editing_description.push(c),
             EditField::Context => app.editing_context.push(c),
             EditField::Priority => match c {
                 '1' => app.editing_priority = Priority::Low,
@@ -386,6 +396,9 @@ fn handle_editing_key(key: event::KeyEvent, app: &mut App) {
         KeyCode::Backspace => match app.active_edit_field {
             EditField::Title => {
                 app.input.pop();
+            }
+            EditField::Description => {
+                app.editing_description.pop();
             }
             EditField::Context => {
                 app.editing_context.pop();
@@ -525,13 +538,14 @@ fn render_input_area(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(50),
-            Constraint::Percentage(25),
-            Constraint::Percentage(25),
+            Constraint::Percentage(30),
+            Constraint::Percentage(30),
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
         ])
         .split(area);
 
-    // Title input (unchanged)
+    // Title
     let title_style = if matches!(app.active_edit_field, EditField::Title) {
         Style::default().fg(BORDER_ACTIVE)
     } else {
@@ -545,48 +559,60 @@ fn render_input_area(f: &mut Frame, app: &App, area: Rect) {
     );
     f.render_widget(title_input, chunks[0]);
 
-    // Context with dropdown hint
+    // Description
+    let desc_style = if matches!(app.active_edit_field, EditField::Description) {
+        Style::default().fg(BORDER_ACTIVE)
+    } else {
+        Style::default().fg(FG_MUTED)
+    };
+    let desc_input = Paragraph::new(app.editing_description.as_str()).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Description ")
+            .border_style(desc_style),
+    );
+    f.render_widget(desc_input, chunks[1]);
+
+    // Context
     let context_style = if matches!(app.active_edit_field, EditField::Context) {
         Style::default().fg(BORDER_ACTIVE)
     } else {
         Style::default().fg(FG_MUTED)
     };
     let context_display = if app.editing_context.is_empty() {
-        "↑↓ to select".to_string()
+        "↑↓ select".to_string()
     } else {
         app.editing_context.clone()
     };
     let context_input = Paragraph::new(context_display).block(
         Block::default()
             .borders(Borders::ALL)
-            .title(" Context (↑↓) ")
+            .title(" Context ")
             .border_style(context_style),
     );
-    f.render_widget(context_input, chunks[1]);
+    f.render_widget(context_input, chunks[2]);
 
-    // Priority (unchanged)
+    // Priority
     let priority_style = if matches!(app.active_edit_field, EditField::Priority) {
         Style::default().fg(BORDER_ACTIVE)
     } else {
         Style::default().fg(FG_MUTED)
     };
-    let priority_text = format!("{:?}", app.editing_priority);
-    let priority_input = Paragraph::new(priority_text).block(
+    let priority_input = Paragraph::new(format!("{:?}", app.editing_priority)).block(
         Block::default()
             .borders(Borders::ALL)
-            .title(" Priority (1-3) ")
+            .title(" Priority ")
             .border_style(priority_style),
     );
-    f.render_widget(priority_input, chunks[2]);
+    f.render_widget(priority_input, chunks[3]);
 
-    // Render context popup when Context field is active
     if matches!(app.active_edit_field, EditField::Context) {
-        render_context_popup(f, app, chunks[1]);
+        render_context_popup(f, app, chunks[2]);
     }
 }
 
 fn render_context_popup(f: &mut Frame, app: &App, anchor: Rect) {
-    let contexts = app.get_unique_contexts();
+    let contexts = app.get_task_contexts();
     if contexts.is_empty() {
         return;
     }
