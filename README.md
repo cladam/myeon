@@ -23,7 +23,7 @@ by applying the **Ilseon Stillness** principles to a Kanban structure:
 * **The "Planning vs. Doing" Split:** Use `myeon` at your desk to organise the chaos. Use **ilseon** on your mobile to
   execute the result.
 
-## Features (Planned)
+## Features
 
 * **Keyboard-First Navigation:** Vim-like bindings for speed and reduced cognitive load.
 * **Zen Focus Mode:** Dim all columns except the one you are currently triaging.
@@ -43,10 +43,11 @@ cargo install --path .
 ## Keybindings
 
 * `h/j/k/l`: Move focus across tasks and columns.
-* `i`: Quick-capture a new idea into the Inbox.
-* `Space`: Toggle **Zen Mode** (Focus on the current column).
+* `a`: Quick-capture a new idea into the Inbox.
+* `e`: Edit a task
 * `c`: Change Context (Switch between Work/Personal/Side-project).
-* `Enter`: Edit task details.
+* `Enter`: Move the task forward
+* `d`: Delete a task
 
 ## About myeon
 
