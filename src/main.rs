@@ -2,18 +2,18 @@ use clap::Parser;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use myeon::cli;
 use myeon::cli::{Cli, Commands};
 use myeon::colours;
 use myeon::data::{MyeonData, Priority, Task, TaskStatus};
 use ratatui::{
-    Frame, Terminal,
-    backend::{Backend, CrosstermBackend},
-    layout::{Constraint, Direction, Layout, Rect},
+    backend::{Backend, CrosstermBackend}, layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     widgets::{Block, Borders, List, ListItem, Paragraph},
+    Frame,
+    Terminal,
 };
 use std::{error::Error, io};
 
@@ -48,6 +48,7 @@ struct App {
     active_edit_field: EditField,
     editing_priority: Priority,
     editing_context: String,
+    editing_description: String,
     context_list_index: usize,
 }
 
@@ -82,6 +83,7 @@ impl App {
             active_edit_field: EditField::Title,
             editing_priority: Priority::Low,
             editing_context: String::new(),
+            editing_description: String::new(),
             context_list_index: 0,
         }
     }
@@ -96,36 +98,68 @@ impl App {
         contexts
     }
 
+    fn cycle_context(&mut self) {
+        let available = self.get_unique_contexts();
+        let current_pos = available
+            .iter()
+            .position(|c| c == &self.current_context)
+            .unwrap_or(0);
+        let next_pos = (current_pos + 1) % available.len();
+        self.current_context = available[next_pos].clone();
+
+        // Reset selection to top to avoid out-of-bounds on filtered views
+        self.selected_task_index = 0;
+    }
+
     fn submit_task(&mut self) {
         if self.input.is_empty() {
             return;
         }
 
         if self.is_editing_existing {
-            // Update existing task
             if let Some(id) = self.editing_task_id {
                 if let Some(task) = self.all_tasks.iter_mut().find(|t| t.id == id) {
                     task.title = self.input.clone();
+                    task.description = if self.editing_description.is_empty() {
+                        task.description.clone()
+                    } else {
+                        Some(self.editing_description.clone())
+                    };
+                    task.context = if self.editing_context.is_empty() {
+                        task.context.clone()
+                    } else {
+                        self.editing_context.clone()
+                    };
+                    task.priority = self.editing_priority.clone();
                 }
             }
             self.is_editing_existing = false;
             self.editing_task_id = None;
         } else {
-            // Create new task
             let new_task = Task {
                 id: uuid::Uuid::new_v4(),
                 title: self.input.clone(),
                 description: None,
                 status: TaskStatus::Todo,
-                priority: Priority::Low,
-                context: "General".to_string(),
+                priority: self.editing_priority.clone(),
+                context: if self.editing_context.is_empty() {
+                    "General".to_string()
+                } else {
+                    self.editing_context.clone()
+                },
                 created_at: chrono::Utc::now(),
             };
             self.all_tasks.push(new_task);
         }
+
+        // Reset all editing state
         self.input.clear();
+        self.editing_context.clear();
+        self.editing_priority = Priority::Low;
+        self.active_edit_field = EditField::Title;
+        self.context_list_index = 0;
         self.input_mode = InputMode::Normal;
-        self.persist(); // Save to tasks.json immediately
+        self.persist();
     }
 
     fn delete_task(&mut self) {
@@ -147,7 +181,12 @@ impl App {
         if let Some(task) = current_tasks.get(self.selected_task_index) {
             let title = task.title.clone();
             let id = task.id;
+            let context = task.context.clone();
+            let priority = task.priority.clone();
+            let description = task.description.clone();
             self.input = title;
+            self.editing_context = context;
+            self.editing_priority = priority;
             self.input_mode = InputMode::Editing;
             self.is_editing_existing = true;
             self.editing_task_id = Some(id);
@@ -289,6 +328,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         }
                     }
                     KeyCode::Enter => app.move_task_forward(),
+                    KeyCode::Char('c') => app.cycle_context(),
                     KeyCode::Char('d') => app.delete_task(),
                     KeyCode::Char('e') => app.start_edit(),
                     _ => {}
@@ -378,7 +418,10 @@ fn ui(f: &mut Frame, app: &App) {
 
     // --- Dynamic Header ---
     let header_text = match app.input_mode {
-        InputMode::Normal => " myeon | 'a' to add • 'h/l' to move • 'q' to quit ".to_string(),
+        InputMode::Normal => format!(
+            " myeon | Context: [{}] | 'c' to cycle • 'a' to add • 'q' to quit ",
+            app.current_context.to_uppercase().to_string()
+        ),
         InputMode::Editing => " Adding Task (Tab to switch fields, Enter to submit) ".to_string(),
     };
 
