@@ -2,18 +2,18 @@ use clap::Parser;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use myeon::cli;
 use myeon::cli::{Cli, Commands};
 use myeon::colours;
 use myeon::data::{MyeonData, Priority, Task, TaskStatus};
 use ratatui::{
-    Frame, Terminal,
-    backend::{Backend, CrosstermBackend},
-    layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    backend::{Backend, CrosstermBackend}, layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Style},
     widgets::{Block, Borders, List, ListItem, Paragraph},
+    Frame,
+    Terminal,
 };
 use std::{error::Error, io};
 
@@ -25,11 +25,18 @@ const BORDER_ACTIVE: Color = Color::Rgb(90, 155, 128); // MutedTeal
 const BORDER_QUIET: Color = Color::Rgb(31, 31, 31); // BorderQuiet
 const ACCENT_URGENT: Color = Color::Rgb(179, 95, 95); // MutedRed (StatusUrgent)
 
+pub enum InputMode {
+    Normal,
+    Editing,
+}
+
 struct App {
     column_index: usize,
     selected_task_index: usize,
     all_tasks: Vec<Task>,
     current_context: String, // For filtering (e.g., "All" or "Work")
+    input: String,
+    input_mode: InputMode,
 }
 
 impl App {
@@ -56,7 +63,30 @@ impl App {
             selected_task_index: 0,
             all_tasks: tasks,
             current_context: "All".to_string(),
+            input: String::new(),
+            input_mode: InputMode::Normal,
         }
+    }
+
+    fn submit_task(&mut self) {
+        if self.input.is_empty() {
+            return;
+        }
+
+        let new_task = Task {
+            id: uuid::Uuid::new_v4(),
+            title: self.input.clone(),
+            description: None,
+            status: TaskStatus::Todo, // New tasks always start here
+            priority: Priority::Low,  // Default priority
+            context: "General".to_string(),
+            created_at: chrono::Utc::now(),
+        };
+
+        self.all_tasks.push(new_task);
+        self.input.clear();
+        self.input_mode = InputMode::Normal;
+        self.persist(); // Save to tasks.json immediately
     }
 
     /// Save current state back to disk
@@ -142,19 +172,34 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
         terminal.draw(|f| ui(f, &app)).expect("TODO: panic message");
 
         if let Event::Key(key) = event::read()? {
-            match key.code {
-                KeyCode::Char('q') => return Ok(()),
-                KeyCode::Char('h') | KeyCode::Left => {
-                    if app.column_index > 0 {
-                        app.column_index -= 1;
+            match app.input_mode {
+                InputMode::Normal => match key.code {
+                    KeyCode::Char('q') => return Ok(()),
+                    KeyCode::Char('a') => app.input_mode = InputMode::Editing,
+                    KeyCode::Char('h') | KeyCode::Left => {
+                        if app.column_index > 0 {
+                            app.column_index -= 1;
+                        }
                     }
-                }
-                KeyCode::Char('l') | KeyCode::Right => {
-                    if app.column_index < 2 {
-                        app.column_index += 1;
+                    KeyCode::Char('l') | KeyCode::Right => {
+                        if app.column_index < 2 {
+                            app.column_index += 1;
+                        }
                     }
-                }
-                _ => {}
+                    _ => {}
+                },
+                InputMode::Editing => match key.code {
+                    KeyCode::Enter => app.submit_task(),
+                    KeyCode::Char(c) => app.input.push(c),
+                    KeyCode::Backspace => {
+                        app.input.pop();
+                    }
+                    KeyCode::Esc => {
+                        app.input.clear();
+                        app.input_mode = InputMode::Normal;
+                    }
+                    _ => {}
+                },
             }
         }
     }
@@ -166,14 +211,24 @@ fn ui(f: &mut Frame, app: &App) {
         .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
         .split(f.area());
 
-    // --- Header ---
-    let header = Paragraph::new(" myeon | h/l to move • q to quit ")
-        .style(Style::default().fg(FG_MUTED))
-        .block(
-            Block::default()
-                .borders(Borders::BOTTOM)
-                .border_style(Style::default().fg(FG_MUTED)),
-        );
+    // --- Dynamic Header ---
+    let header_text = match app.input_mode {
+        InputMode::Normal => " myeon | 'a' to add • 'h/l' to move • 'q' to quit ".to_string(),
+        InputMode::Editing => format!(" New Task: {}_", app.input),
+    };
+
+    let header_style = if let InputMode::Editing = app.input_mode {
+        Style::default().fg(BORDER_ACTIVE) // Highlight the header in Teal when adding
+    } else {
+        Style::default().fg(FG_MUTED)
+    };
+
+    let header = Paragraph::new(header_text).style(header_style).block(
+        Block::default()
+            .borders(Borders::BOTTOM)
+            .border_style(header_style),
+    );
+
     f.render_widget(header, chunks[0]);
 
     // --- Columns ---

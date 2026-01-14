@@ -10,6 +10,23 @@ pub enum TaskStatus {
     Done,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ColumnConfig {
+    pub todo_label: String,
+    pub doing_label: String,
+    pub done_label: String,
+}
+
+impl Default for ColumnConfig {
+    fn default() -> Self {
+        Self {
+            todo_label: "To Do".into(),
+            doing_label: "Doing".into(),
+            done_label: "Done".into(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Priority {
     High,   // Will use ACCENT_URGENT (MutedRed)
