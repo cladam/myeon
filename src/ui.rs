@@ -45,10 +45,7 @@ pub fn render(f: &mut Frame, app: &App) {
 
 fn render_header(f: &mut Frame, app: &App, area: Rect) {
     let header_text = match app.input_mode {
-        InputMode::Normal => format!(
-            " myeon | Context: [{}] | 'c' to cycle • 'a' to add • 'e' to edit • Enter to move card forward • 'q' to quit ",
-            app.current_context.to_uppercase()
-        ),
+        InputMode::Normal => format!(" myeon | Context: [{}]", app.current_context.to_uppercase()),
         InputMode::Editing => " Adding Task (Tab to switch fields, Enter to submit) ".to_string(),
     };
 

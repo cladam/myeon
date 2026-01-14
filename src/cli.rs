@@ -6,7 +6,9 @@ use clap::{Parser, Subcommand};
     author = "Claes Adamsson @cladam",
     version,
     about = "myeon is a minimalist, keyboard-driven TUI Kanban board",
-    long_about = None)]
+    long_about = None,
+    after_help = "KEYBINDINGS:\n  h/j/k/l    Move focus across tasks and columns\n  a          Quick-capture a new idea\n  e          Edit a task\n  c          Change Context (cycle Work/Personal/etc.)\n  Enter      Move the task forward\n  Backspace  Move the task backward\n  d          Delete a task\n  q          Quit"
+)]
 #[command(propagate_version = true)]
 pub struct Cli {
     #[command(subcommand)]

@@ -30,6 +30,7 @@ pub fn handle_input(app: &mut App) -> std::io::Result<bool> {
                     }
                 }
                 KeyCode::Enter => app.move_task_forward(),
+                KeyCode::Backspace => app.move_task_backward(),
                 KeyCode::Char('c') => app.cycle_context(),
                 KeyCode::Char('d') => app.delete_task(),
                 KeyCode::Char('e') => app.start_edit(),

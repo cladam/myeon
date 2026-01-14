@@ -190,6 +190,22 @@ impl App {
         self.persist();
     }
 
+    pub fn move_task_backward(&mut self) {
+        let current_tasks = self.get_current_column_tasks();
+        if let Some(task_to_move) = current_tasks.get(self.selected_task_index) {
+            let id = task_to_move.id;
+            if let Some(task) = self.all_tasks.iter_mut().find(|t| t.id == id) {
+                task.status = match task.status {
+                    TaskStatus::Idea => TaskStatus::Idea,
+                    TaskStatus::Todo => TaskStatus::Idea,
+                    TaskStatus::Doing => TaskStatus::Todo,
+                    TaskStatus::Done => TaskStatus::Doing,
+                };
+            }
+        }
+        self.persist();
+    }
+
     pub fn tasks_by_status(&self, status: TaskStatus) -> Vec<&Task> {
         self.all_tasks
             .iter()
