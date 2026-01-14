@@ -30,6 +30,12 @@ pub enum InputMode {
     Editing,
 }
 
+pub enum EditField {
+    Title,
+    Context,
+    Priority,
+}
+
 struct App {
     column_index: usize,
     selected_task_index: usize,
@@ -39,6 +45,10 @@ struct App {
     input_mode: InputMode,
     is_editing_existing: bool,
     editing_task_id: Option<uuid::Uuid>,
+    active_edit_field: EditField,
+    editing_priority: Priority,
+    editing_context: String,
+    context_list_index: usize,
 }
 
 impl App {
@@ -69,7 +79,21 @@ impl App {
             input_mode: InputMode::Normal,
             is_editing_existing: false,
             editing_task_id: None,
+            active_edit_field: EditField::Title,
+            editing_priority: Priority::Low,
+            editing_context: String::new(),
+            context_list_index: 0,
         }
+    }
+
+    fn get_unique_contexts(&self) -> Vec<String> {
+        let mut contexts: Vec<String> = self.all_tasks.iter().map(|t| t.context.clone()).collect();
+        contexts.sort();
+        contexts.dedup();
+        if !contexts.contains(&"General".to_string()) {
+            contexts.insert(0, "General".to_string());
+        }
+        contexts
     }
 
     fn submit_task(&mut self) {
@@ -269,39 +293,97 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                     KeyCode::Char('e') => app.start_edit(),
                     _ => {}
                 },
-                InputMode::Editing => match key.code {
-                    KeyCode::Enter => app.submit_task(),
-                    KeyCode::Char(c) => app.input.push(c),
-                    KeyCode::Backspace => {
-                        app.input.pop();
-                    }
-                    KeyCode::Esc => {
-                        app.input.clear();
-                        app.input_mode = InputMode::Normal;
-                        app.is_editing_existing = false;
-                        app.editing_task_id = None;
-                    }
-                    _ => {}
-                },
+                InputMode::Editing => handle_editing_key(key, &mut app),
             }
         }
     }
 }
 
+fn handle_editing_key(key: event::KeyEvent, app: &mut App) {
+    match key.code {
+        KeyCode::Tab => match app.active_edit_field {
+            EditField::Title => app.active_edit_field = EditField::Context,
+            EditField::Context => app.active_edit_field = EditField::Priority,
+            EditField::Priority => app.active_edit_field = EditField::Title,
+        },
+        KeyCode::BackTab => match app.active_edit_field {
+            EditField::Title => app.active_edit_field = EditField::Priority,
+            EditField::Context => app.active_edit_field = EditField::Title,
+            EditField::Priority => app.active_edit_field = EditField::Context,
+        },
+        KeyCode::Up | KeyCode::Down if matches!(app.active_edit_field, EditField::Context) => {
+            let contexts = app.get_unique_contexts();
+            if !contexts.is_empty() {
+                if key.code == KeyCode::Down {
+                    app.context_list_index = (app.context_list_index + 1) % contexts.len();
+                } else if app.context_list_index > 0 {
+                    app.context_list_index -= 1;
+                } else {
+                    app.context_list_index = contexts.len() - 1;
+                }
+                app.editing_context = contexts[app.context_list_index].clone();
+            }
+        }
+        KeyCode::Enter => app.submit_task(),
+        KeyCode::Esc => {
+            app.input_mode = InputMode::Normal;
+            app.active_edit_field = EditField::Title;
+            app.input.clear();
+            app.editing_context.clear();
+            app.editing_priority = Priority::Low;
+            app.context_list_index = 0;
+        }
+        KeyCode::Char(c) => match app.active_edit_field {
+            EditField::Title => app.input.push(c),
+            EditField::Context => app.editing_context.push(c),
+            EditField::Priority => match c {
+                '1' => app.editing_priority = Priority::Low,
+                '2' => app.editing_priority = Priority::Medium,
+                '3' => app.editing_priority = Priority::High,
+                _ => {}
+            },
+        },
+        KeyCode::Backspace => match app.active_edit_field {
+            EditField::Title => {
+                app.input.pop();
+            }
+            EditField::Context => {
+                app.editing_context.pop();
+            }
+            EditField::Priority => {}
+        },
+        _ => {}
+    }
+}
+
 fn ui(f: &mut Frame, app: &App) {
-    let chunks = Layout::default()
+    let main_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
+        .constraints(if matches!(app.input_mode, InputMode::Editing) {
+            [
+                Constraint::Length(3),
+                Constraint::Min(0),
+                Constraint::Length(3),
+            ]
+            .as_ref()
+        } else {
+            [
+                Constraint::Length(3),
+                Constraint::Min(0),
+                Constraint::Length(0),
+            ]
+            .as_ref()
+        })
         .split(f.area());
 
     // --- Dynamic Header ---
     let header_text = match app.input_mode {
         InputMode::Normal => " myeon | 'a' to add • 'h/l' to move • 'q' to quit ".to_string(),
-        InputMode::Editing => format!(" New Task: {}_", app.input),
+        InputMode::Editing => " Adding Task (Tab to switch fields, Enter to submit) ".to_string(),
     };
 
     let header_style = if let InputMode::Editing = app.input_mode {
-        Style::default().fg(BORDER_ACTIVE) // Highlight the header in Teal when adding
+        Style::default().fg(BORDER_ACTIVE)
     } else {
         Style::default().fg(FG_MUTED)
     };
@@ -312,20 +394,17 @@ fn ui(f: &mut Frame, app: &App) {
             .border_style(header_style),
     );
 
-    f.render_widget(header, chunks[0]);
+    f.render_widget(header, main_chunks[0]);
 
     // --- Columns ---
     let columns = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(
-            [
-                Constraint::Percentage(33),
-                Constraint::Percentage(33),
-                Constraint::Percentage(33),
-            ]
-            .as_ref(),
-        )
-        .split(chunks[1]);
+        .constraints([
+            Constraint::Percentage(33),
+            Constraint::Percentage(33),
+            Constraint::Percentage(33),
+        ])
+        .split(main_chunks[1]);
 
     let todo_tasks = app.tasks_by_status(TaskStatus::Todo);
     let doing_tasks = app.tasks_by_status(TaskStatus::Doing);
@@ -355,6 +434,11 @@ fn ui(f: &mut Frame, app: &App) {
         app.column_index == 2,
         app.selected_task_index,
     );
+
+    // --- Input Area (only in Editing mode) ---
+    if matches!(app.input_mode, InputMode::Editing) {
+        render_input_area(f, app, main_chunks[2]);
+    }
 }
 
 fn render_column(
@@ -392,4 +476,107 @@ fn render_column(
     );
 
     f.render_widget(list, area);
+}
+
+fn render_input_area(f: &mut Frame, app: &App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(50),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+        ])
+        .split(area);
+
+    // Title input (unchanged)
+    let title_style = if matches!(app.active_edit_field, EditField::Title) {
+        Style::default().fg(BORDER_ACTIVE)
+    } else {
+        Style::default().fg(FG_MUTED)
+    };
+    let title_input = Paragraph::new(app.input.as_str()).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Title ")
+            .border_style(title_style),
+    );
+    f.render_widget(title_input, chunks[0]);
+
+    // Context with dropdown hint
+    let context_style = if matches!(app.active_edit_field, EditField::Context) {
+        Style::default().fg(BORDER_ACTIVE)
+    } else {
+        Style::default().fg(FG_MUTED)
+    };
+    let context_display = if app.editing_context.is_empty() {
+        "↑↓ to select".to_string()
+    } else {
+        app.editing_context.clone()
+    };
+    let context_input = Paragraph::new(context_display).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Context (↑↓) ")
+            .border_style(context_style),
+    );
+    f.render_widget(context_input, chunks[1]);
+
+    // Priority (unchanged)
+    let priority_style = if matches!(app.active_edit_field, EditField::Priority) {
+        Style::default().fg(BORDER_ACTIVE)
+    } else {
+        Style::default().fg(FG_MUTED)
+    };
+    let priority_text = format!("{:?}", app.editing_priority);
+    let priority_input = Paragraph::new(priority_text).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Priority (1-3) ")
+            .border_style(priority_style),
+    );
+    f.render_widget(priority_input, chunks[2]);
+
+    // Render context popup when Context field is active
+    if matches!(app.active_edit_field, EditField::Context) {
+        render_context_popup(f, app, chunks[1]);
+    }
+}
+
+fn render_context_popup(f: &mut Frame, app: &App, anchor: Rect) {
+    let contexts = app.get_unique_contexts();
+    if contexts.is_empty() {
+        return;
+    }
+
+    let popup_height = (contexts.len() as u16 + 2).min(8);
+    let popup_area = Rect {
+        x: anchor.x,
+        y: anchor.y.saturating_sub(popup_height),
+        width: anchor.width,
+        height: popup_height,
+    };
+
+    let items: Vec<ListItem> = contexts
+        .iter()
+        .enumerate()
+        .map(|(i, ctx)| {
+            let style = if i == app.context_list_index {
+                Style::default().fg(Color::Black).bg(BORDER_ACTIVE)
+            } else {
+                Style::default().fg(FG_PRIMARY)
+            };
+            ListItem::new(format!(" {}", ctx)).style(style)
+        })
+        .collect();
+
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Contexts ")
+            .border_style(Style::default().fg(BORDER_ACTIVE))
+            .style(Style::default().bg(BG_DEEP)),
+    );
+
+    f.render_widget(ratatui::widgets::Clear, popup_area);
+    f.render_widget(list, popup_area);
 }
