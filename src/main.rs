@@ -8,6 +8,8 @@ use myeon::cli;
 use myeon::cli::{Cli, Commands};
 use myeon::colours;
 use myeon::data::{MyeonData, Priority, Task, TaskStatus};
+use ratatui::text::Line;
+use ratatui::text::Span;
 use ratatui::{
     Frame, Terminal,
     backend::{Backend, CrosstermBackend},
@@ -466,6 +468,15 @@ fn ui(f: &mut Frame, app: &App) {
     let doing_tasks = app.tasks_by_status(TaskStatus::Doing);
     let done_tasks = app.tasks_by_status(TaskStatus::Done);
 
+    // Determine Doing column border colour based on WIP Limit
+    let doing_border_color = if doing_tasks.len() > 3 {
+        ACCENT_URGENT // MutedRed indicating overwhelm
+    } else if app.column_index == 1 {
+        BORDER_ACTIVE // MutedTeal for focus
+    } else {
+        BORDER_QUIET // Dark border
+    };
+
     render_column(
         f,
         columns[0],
@@ -473,6 +484,7 @@ fn ui(f: &mut Frame, app: &App) {
         &todo_tasks,
         app.column_index == 0,
         app.selected_task_index,
+        None,
     );
     render_column(
         f,
@@ -481,6 +493,7 @@ fn ui(f: &mut Frame, app: &App) {
         &doing_tasks,
         app.column_index == 1,
         app.selected_task_index,
+        Some(doing_border_color),
     );
     render_column(
         f,
@@ -489,6 +502,7 @@ fn ui(f: &mut Frame, app: &App) {
         &done_tasks,
         app.column_index == 2,
         app.selected_task_index,
+        None,
     );
 
     // --- Input Area (only in Editing mode) ---
@@ -504,25 +518,37 @@ fn render_column(
     items: &[&Task],
     is_active: bool,
     selected_index: usize,
+    override_color: Option<Color>,
 ) {
-    let border_color = if is_active {
-        BORDER_ACTIVE
-    } else {
-        BORDER_QUIET
-    };
-
     let list_items: Vec<ListItem> = items
         .iter()
         .enumerate()
         .map(|(i, task)| {
-            let style = if is_active && i == selected_index {
-                Style::default().fg(Color::Black).bg(BORDER_ACTIVE)
+            let priority_style = match task.priority {
+                Priority::High => Style::default().fg(ACCENT_URGENT), // MutedRed
+                Priority::Medium => Style::default().fg(Color::Rgb(192, 138, 62)), // QuietAmber
+                Priority::Low => Style::default().fg(FG_MUTED),       // MutedDetail
+            };
+
+            let item_style = if is_active && i == selected_index {
+                Style::default().bg(BORDER_ACTIVE).fg(Color::Black)
             } else {
                 Style::default().fg(FG_PRIMARY)
             };
-            ListItem::new(format!(" • {}", task.title)).style(style)
+
+            // Display a colored bullet point based on priority
+            ListItem::new(Line::from(vec![
+                Span::styled(" ● ", priority_style),
+                Span::styled(task.title.clone(), item_style),
+            ]))
         })
         .collect();
+
+    let border_color = override_color.unwrap_or(if is_active {
+        BORDER_ACTIVE
+    } else {
+        BORDER_QUIET
+    });
 
     let list = List::new(list_items).block(
         Block::default()
@@ -530,7 +556,6 @@ fn render_column(
             .title(format!(" {} ", title))
             .border_style(Style::default().fg(border_color)),
     );
-
     f.render_widget(list, area);
 }
 
