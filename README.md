@@ -33,11 +33,32 @@ by applying the **Ilseon Stillness** principles to a Kanban structure:
 
 ## Installation
 
-```bash
-git clone https://github.com/your-username/myeon
-cd myeon
-cargo install --path .
+You need [Rust and Cargo](https://www.rust-lang.org/tools/install) installed.
 
+### Installing from crates.io
+
+The easiest way to install `myeon` is to download it from [crates.io](https://crates.io/crates/myeon). You can do it
+using
+the following command:
+
+```bash
+cargo install myeon
+```
+
+If you want to update `myeon` to the latest version, execute the following command:
+
+```bash
+myeon update
+```
+
+#### Building from source
+
+Alternatively you can build `myeon` from source using Cargo:
+
+```bash
+git clone https://github.com/cladam/myeon.git
+cd myeon
+sudo cargo install --path . --root /usr/local
 ```
 
 ## Keybindings
