@@ -2,18 +2,18 @@ use clap::Parser;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use myeon::cli;
 use myeon::cli::{Cli, Commands};
 use myeon::colours;
 use myeon::data::{MyeonData, Priority, Task, TaskStatus};
 use ratatui::{
-    backend::{Backend, CrosstermBackend}, layout::{Constraint, Direction, Layout, Rect},
+    Frame, Terminal,
+    backend::{Backend, CrosstermBackend},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     widgets::{Block, Borders, List, ListItem, Paragraph},
-    Frame,
-    Terminal,
 };
 use std::{error::Error, io};
 
