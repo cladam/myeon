@@ -2,7 +2,7 @@ use clap::Parser;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use myeon::cli;
 use myeon::cli::{Cli, Commands};
@@ -10,12 +10,13 @@ use myeon::colours;
 use myeon::data::{MyeonData, Priority, Task, TaskStatus};
 use ratatui::text::Line;
 use ratatui::text::Span;
+use ratatui::widgets::BorderType;
 use ratatui::{
-    Frame, Terminal,
-    backend::{Backend, CrosstermBackend},
-    layout::{Constraint, Direction, Layout, Rect},
+    backend::{Backend, CrosstermBackend}, layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     widgets::{Block, Borders, List, ListItem, Paragraph},
+    Frame,
+    Terminal,
 };
 use std::{error::Error, io};
 
@@ -520,43 +521,80 @@ fn render_column(
     selected_index: usize,
     override_color: Option<Color>,
 ) {
-    let list_items: Vec<ListItem> = items
-        .iter()
-        .enumerate()
-        .map(|(i, task)| {
-            let priority_style = match task.priority {
-                Priority::High => Style::default().fg(ACCENT_URGENT), // MutedRed
-                Priority::Medium => Style::default().fg(Color::Rgb(192, 138, 62)), // QuietAmber
-                Priority::Low => Style::default().fg(FG_MUTED),       // MutedDetail
-            };
-
-            let item_style = if is_active && i == selected_index {
-                Style::default().bg(BORDER_ACTIVE).fg(Color::Black)
-            } else {
-                Style::default().fg(FG_PRIMARY)
-            };
-
-            // Display a colored bullet point based on priority
-            ListItem::new(Line::from(vec![
-                Span::styled(" ● ", priority_style),
-                Span::styled(task.title.clone(), item_style),
-            ]))
-        })
-        .collect();
-
     let border_color = override_color.unwrap_or(if is_active {
         BORDER_ACTIVE
     } else {
         BORDER_QUIET
     });
 
-    let list = List::new(list_items).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(format!(" {} ", title))
-            .border_style(Style::default().fg(border_color)),
-    );
-    f.render_widget(list, area);
+    // Outer column block
+    let column_block = Block::default()
+        .borders(Borders::ALL)
+        .title(format!(" {} ", title))
+        .border_type(BorderType::Thick)
+        .border_style(Style::default().fg(border_color));
+
+    let inner_area = column_block.inner(area);
+    f.render_widget(column_block, area);
+
+    // Calculate card heights (3 lines per card + 1 spacing)
+    let card_height = 4u16;
+    let mut y_offset = 0u16;
+
+    for (i, task) in items.iter().enumerate() {
+        if y_offset + card_height > inner_area.height {
+            break; // No more space
+        }
+
+        let card_area = Rect {
+            x: inner_area.x,
+            y: inner_area.y + y_offset,
+            width: inner_area.width,
+            height: card_height - 1,
+        };
+
+        let is_selected = is_active && i == selected_index;
+
+        let priority_indicator = match task.priority {
+            Priority::High => ("▌", ACCENT_URGENT),
+            Priority::Medium => ("▌", Color::Rgb(192, 138, 62)),
+            Priority::Low => ("▌", FG_MUTED),
+        };
+
+        let card_border_color = if is_selected {
+            BORDER_ACTIVE
+        } else {
+            BORDER_QUIET
+        };
+        let card_bg = BG_DEEP;
+
+        let description = task.description.clone().unwrap_or_default();
+        let desc_preview: String = description.chars().take(30).collect();
+
+        let card = Paragraph::new(vec![
+            Line::from(vec![
+                Span::styled(
+                    priority_indicator.0,
+                    Style::default().fg(priority_indicator.1),
+                ),
+                Span::styled(&task.title, Style::default().fg(FG_PRIMARY)),
+            ]),
+            Line::from(Span::styled(
+                format!(" {}", desc_preview),
+                Style::default().fg(FG_MUTED),
+            )),
+        ])
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(card_border_color))
+                .style(Style::default().bg(card_bg)),
+        );
+
+        f.render_widget(card, card_area);
+        y_offset += card_height;
+    }
 }
 
 fn render_input_area(f: &mut Frame, app: &App, area: Rect) {
