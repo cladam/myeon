@@ -207,11 +207,25 @@ impl App {
     }
 
     pub fn tasks_by_status(&self, status: TaskStatus) -> Vec<&Task> {
-        self.all_tasks
+        let mut tasks: Vec<&Task> = self
+            .all_tasks
             .iter()
             .filter(|t| t.status == status)
             .filter(|t| self.current_context == "All" || t.context == self.current_context)
-            .collect()
+            .collect();
+
+        tasks.sort_by(|a, b| {
+            let priority_order = |p: &Priority| match p {
+                Priority::High => 0,
+                Priority::Medium => 1,
+                Priority::Low => 2,
+            };
+            priority_order(&a.priority).cmp(&priority_order(&b.priority))
+            // Need Urgency later to use Eisenhower matrix
+            // .then_with(|| a.urgency.cmp(&b.urgency))
+        });
+
+        tasks
     }
 
     fn persist(&self) {

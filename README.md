@@ -64,11 +64,12 @@ sudo cargo install --path . --root /usr/local
 ## Keybindings
 
 * `h/j/k/l`: Move focus across tasks and columns.
+* `c`: Change Context (Switch between Work/Personal/Side-project).
 * `a`: Quick-capture a new idea into the Inbox.
 * `e`: Edit a task
-* `c`: Change Context (Switch between Work/Personal/Side-project).
-* `Enter`: Move the task forward
 * `d`: Delete a task
+* `Enter`: Move the task forward
+* `Backspace`: Move a task backwards
 
 ## About myeon
 
