@@ -1,5 +1,6 @@
 use crate::app::{App, EditField, InputMode};
 use crate::data::{Priority, Task, TaskStatus};
+use ratatui::style::Modifier;
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
@@ -91,6 +92,7 @@ fn render_columns(f: &mut Frame, app: &App, area: Rect) {
         app.column_index == 0,
         app.selected_task_index,
         None,
+        app.column_index != 0, // is_dimmed
     );
     render_column(
         f,
@@ -100,6 +102,7 @@ fn render_columns(f: &mut Frame, app: &App, area: Rect) {
         app.column_index == 1,
         app.selected_task_index,
         None,
+        app.column_index != 1, // is_dimmed
     );
     render_column(
         f,
@@ -109,6 +112,7 @@ fn render_columns(f: &mut Frame, app: &App, area: Rect) {
         app.column_index == 2,
         app.selected_task_index,
         Some(doing_border_color),
+        app.column_index != 2, // is_dimmed
     );
     render_column(
         f,
@@ -118,6 +122,7 @@ fn render_columns(f: &mut Frame, app: &App, area: Rect) {
         app.column_index == 3,
         app.selected_task_index,
         None,
+        app.column_index != 3, // is_dimmed
     );
 }
 
@@ -129,6 +134,7 @@ fn render_column(
     is_active: bool,
     selected_index: usize,
     override_color: Option<Color>,
+    is_dimmed: bool,
 ) {
     let border_color = override_color.unwrap_or(if is_active {
         BORDER_ACTIVE
@@ -136,11 +142,29 @@ fn render_column(
         BORDER_QUIET
     });
 
+    // Dim factor for inactive columns
+    let dim_style = if is_dimmed {
+        Style::default().add_modifier(Modifier::DIM)
+    } else {
+        Style::default()
+    };
+
+    let fg_primary = if is_dimmed {
+        Color::Rgb(80, 80, 80)
+    } else {
+        FG_PRIMARY
+    };
+    let fg_muted = if is_dimmed {
+        Color::Rgb(50, 50, 50)
+    } else {
+        FG_MUTED
+    };
+
     let column_block = Block::default()
         .borders(Borders::ALL)
         .title(format!(" {} ", title))
         .border_type(BorderType::Thick)
-        .border_style(Style::default().fg(border_color));
+        .border_style(Style::default().fg(border_color).patch(dim_style));
 
     let inner_area = column_block.inner(area);
     f.render_widget(column_block, area);
@@ -175,13 +199,29 @@ fn render_column(
         let is_selected = is_active && i == selected_index;
 
         let (indicator, indicator_color) = match task.priority {
-            Priority::High => ("▌", ACCENT_URGENT),
-            Priority::Medium => ("▌", Color::Rgb(192, 138, 62)),
-            Priority::Low => ("▌", FG_MUTED),
+            Priority::High => (
+                "▌",
+                if is_dimmed {
+                    Color::Rgb(60, 40, 40)
+                } else {
+                    ACCENT_URGENT
+                },
+            ),
+            Priority::Medium => (
+                "▌",
+                if is_dimmed {
+                    Color::Rgb(60, 50, 30)
+                } else {
+                    Color::Rgb(192, 138, 62)
+                },
+            ),
+            Priority::Low => ("▌", fg_muted),
         };
 
         let card_border_color = if is_selected {
             BORDER_ACTIVE
+        } else if is_dimmed {
+            Color::Rgb(40, 40, 40)
         } else {
             BORDER_QUIET
         };
@@ -193,12 +233,12 @@ fn render_column(
                 if idx == 0 {
                     Line::from(vec![
                         Span::styled(indicator, Style::default().fg(indicator_color)),
-                        Span::styled(line.to_string(), Style::default().fg(FG_PRIMARY)),
+                        Span::styled(line.to_string(), Style::default().fg(fg_primary)),
                     ])
                 } else {
                     Line::from(Span::styled(
                         format!(" {}", line),
-                        Style::default().fg(FG_PRIMARY),
+                        Style::default().fg(fg_primary),
                     ))
                 }
             })
@@ -208,7 +248,7 @@ fn render_column(
             for line in wrapped_desc.lines() {
                 lines.push(Line::from(Span::styled(
                     format!(" {}", line),
-                    Style::default().fg(FG_MUTED),
+                    Style::default().fg(fg_muted),
                 )));
             }
         }
