@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="images/screenshot1.png" alt="myeon" width="640" height="352">
+    <img src="images/myeon-screenshot.png" alt="myeon" width="640" height="352">
 </p>
 
 <h1 align="center">myeon (면)</h1>
