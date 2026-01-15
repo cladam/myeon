@@ -136,17 +136,14 @@ fn render_column(
     override_color: Option<Color>,
     is_dimmed: bool,
 ) {
-    let border_color = override_color.unwrap_or(if is_active {
-        BORDER_ACTIVE
-    } else {
-        BORDER_QUIET
-    });
+    let border_color = override_color.unwrap_or(BORDER_ACTIVE);
 
-    // Dim factor for inactive columns
-    let dim_style = if is_dimmed {
-        Style::default().add_modifier(Modifier::DIM)
-    } else {
+    let border_style = if is_dimmed {
         Style::default()
+            .fg(border_color)
+            .add_modifier(Modifier::DIM)
+    } else {
+        Style::default().fg(border_color)
     };
 
     let fg_primary = if is_dimmed {
@@ -164,7 +161,7 @@ fn render_column(
         .borders(Borders::ALL)
         .title(format!(" {} ", title))
         .border_type(BorderType::Thick)
-        .border_style(Style::default().fg(border_color).patch(dim_style));
+        .border_style(border_style);
 
     let inner_area = column_block.inner(area);
     f.render_widget(column_block, area);
