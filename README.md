@@ -92,3 +92,9 @@ ensure a seamless transition between mobile execution and desktop planning:
 * **Semantic Accents:** Employs `MutedTeal` for active focus and `MutedRed` for urgency, maintaining a consistent mental
   map across devices.
 * **OLED Friendly:** Optimised for high-contrast, low-brightness environments.
+
+### Contributing
+
+Contributions are welcome! Please feel free to open an issue or submit a pull request.
+
+Built with ❤️ for the neurodivergent community.
